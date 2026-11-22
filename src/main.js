@@ -381,6 +381,25 @@ function resumeAtSection() {
   toast(`Resumed at section ${section}`);
 }
 
+function processVoiceTranscript(transcript) {
+  const now = Date.now();
+  if (now - (recognition.lastCommandAt || 0) < 1400) return;
+
+  if (/(^|\b)(next|continue|go forward|move forward)(\b|$)/.test(transcript)) {
+    recognition.lastCommandAt = now;
+    toast('Voice command: Next');
+    nextSegment();
+  } else if (/(^|\b)(previous|back|go back|move back)(\b|$)/.test(transcript)) {
+    recognition.lastCommandAt = now;
+    toast('Voice command: Previous');
+    previousSegment();
+  } else if (/(^|\b)(repeat|again|say that again)(\b|$)/.test(transcript)) {
+    recognition.lastCommandAt = now;
+    toast('Voice command: Repeat');
+    speakCurrent();
+  }
+}
+
 function setupVoiceRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -396,28 +415,26 @@ function setupVoiceRecognition() {
   }
   recognition = new SpeechRecognition();
   recognition.continuous = true;
-  recognition.interimResults = false;
+  recognition.interimResults = true;
   recognition.lang = 'en-US';
   recognition.maxAlternatives = 3;
-  if ('processLocally' in recognition) {
-    recognition.processLocally = true;
-  }
   recognition.onstart = () => {
     listening = true;
     updateListeningUi();
+    el.voiceHint.textContent = 'Listening — say “next”';
   };
   recognition.onresult = event => {
-    const result = event.results[event.results.length - 1];
-    let transcript = '';
-    for (let i = 0; i < result.length; i++) transcript += ` ${result[i].transcript}`;
-    transcript = transcript.trim().toLowerCase();
-    const now = Date.now();
-    if (now - (recognition.lastCommandAt || 0) < 1200) return;
-    if (/\b(next|continue|go forward|move forward)\b/.test(transcript)) nextSegment();
-    else if (/\b(previous|back|go back|move back)\b/.test(transcript)) previousSegment();
-    else if (/\b(repeat|again|say that again)\b/.test(transcript)) speakCurrent();
-    else return;
-    recognition.lastCommandAt = now;
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      let transcript = '';
+      for (let n = 0; n < result.length; n++) transcript += ` ${result[n].transcript}`;
+      transcript = transcript.trim().toLowerCase();
+      el.voiceHint.textContent = transcript
+        ? `Heard: “${transcript}”`
+        : 'Listening — say “next”';
+      if (!result.isFinal && transcript.length < 3) continue;
+      processVoiceTranscript(transcript);
+    }
   };
   recognition.onend = () => {
     if (listening) {
@@ -576,7 +593,7 @@ function populateVoices() {
 populateVoices();
 window.speechSynthesis?.addEventListener?.('voiceschanged', populateVoices);
 
-document.addEventListener('keydown', event => {
+window.addEventListener('keydown', event => {
   const target = event.target;
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) return;
   if (event.repeat) {
@@ -596,7 +613,7 @@ document.addEventListener('keydown', event => {
     event.preventDefault();
     togglePause();
   }
-});
+}, true);
 
 document.querySelector('#zoomIn').addEventListener('click', async () => {
   if (!pdfDoc) return;
