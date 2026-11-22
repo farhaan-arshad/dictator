@@ -283,7 +283,7 @@ function speakCurrent() {
   window.speechSynthesis.cancel();
   playbackPaused = false;
   updatePauseButton();
-  const utterance = new SpeechSynthesisUtterance(segments[currentIndex].text);
+  const utterance = new SpeechSynthesisUtterance(speakPunctuation(segments[currentIndex].text));
   utterance.rate = readingRate;
   const selectedVoice = window.speechSynthesis
     .getVoices()
@@ -324,6 +324,26 @@ function previousSegment() {
     highlightCurrentSegment();
     speakCurrent();
   }
+}
+
+function speakPunctuation(text) {
+  return text
+    .replace(/\.{3}/g, ' ellipsis ')
+    .replace(/\b([A-Z])\./g, '$1 ')
+    .replace(/([.!?])(?=\s|$)/g, match => ({
+      '.': ' period',
+      '!': ' exclamation mark',
+      '?': ' question mark',
+    })[match])
+    .replace(/,/g, ' comma')
+    .replace(/;/g, ' semicolon')
+    .replace(/:/g, ' colon')
+    .replace(/—/g, ' em dash ')
+    .replace(/\(/g, ' open parenthesis ')
+    .replace(/\)/g, ' close parenthesis ')
+    .replace(/"/g, ' quote ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function updatePauseButton() {
@@ -379,6 +399,9 @@ function setupVoiceRecognition() {
   recognition.interimResults = false;
   recognition.lang = 'en-US';
   recognition.maxAlternatives = 3;
+  if ('processLocally' in recognition) {
+    recognition.processLocally = true;
+  }
   recognition.onstart = () => {
     listening = true;
     updateListeningUi();
@@ -390,9 +413,9 @@ function setupVoiceRecognition() {
     transcript = transcript.trim().toLowerCase();
     const now = Date.now();
     if (now - (recognition.lastCommandAt || 0) < 1200) return;
-    if (/\bnext\b/.test(transcript)) nextSegment();
-    else if (/\b(previous|back)\b/.test(transcript)) previousSegment();
-    else if (/\b(repeat|again)\b/.test(transcript)) speakCurrent();
+    if (/\b(next|continue|go forward|move forward)\b/.test(transcript)) nextSegment();
+    else if (/\b(previous|back|go back|move back)\b/.test(transcript)) previousSegment();
+    else if (/\b(repeat|again|say that again)\b/.test(transcript)) speakCurrent();
     else return;
     recognition.lastCommandAt = now;
   };
@@ -419,8 +442,8 @@ function setupVoiceRecognition() {
     } else if (event.error === 'network') {
       listening = false;
       updateListeningUi();
-      toast('Speech service could not connect. Check Chrome speech access or try again.');
-      el.voiceHint.textContent = 'Service blocked — use arrows or retry';
+      toast('On-device voice recognition is unavailable here. Use Chrome or the arrow keys.');
+      el.voiceHint.textContent = 'Cloud blocked — use arrows or Chrome';
     } else if (event.error === 'no-speech') {
       el.voiceHint.textContent = 'Listening — say “next”';
     }
@@ -556,6 +579,10 @@ window.speechSynthesis?.addEventListener?.('voiceschanged', populateVoices);
 document.addEventListener('keydown', event => {
   const target = event.target;
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) return;
+  if (event.repeat) {
+    event.preventDefault();
+    return;
+  }
   if (event.key === 'ArrowRight') {
     event.preventDefault();
     nextSegment();
