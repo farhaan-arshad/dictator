@@ -376,7 +376,7 @@ function setupVoiceRecognition() {
     el.voiceHint.textContent = 'Press to allow microphone';
   }
   recognition = new SpeechRecognition();
-  recognition.continuous = true;
+  recognition.continuous = !(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
   recognition.interimResults = true;
   recognition.lang = 'en-US';
   recognition.maxAlternatives = 3;
@@ -461,12 +461,16 @@ async function requestMicrophonePermission() {
 function startListening() {
   if (!recognition) return;
   if (listening) return;
-  requestMicrophonePermission().then(granted => {
-    if (!granted) return;
-    listening = true;
+  listening = true;
+  updateListeningUi();
+  try {
+    recognition.start();
+  } catch (error) {
+    listening = false;
     updateListeningUi();
-    try { recognition.start(); } catch {}
-  });
+    toast('Voice recognition could not start');
+  }
+  requestMicrophonePermission();
 }
 
 function toggleListening() {
