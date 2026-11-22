@@ -365,13 +365,14 @@ function setupVoiceRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     el.voiceButton.disabled = true;
-    el.voiceHint.textContent = 'Not supported in this browser';
+    el.voiceHint.textContent = 'Use Chrome or Edge for voice control';
+    el.voiceTitle.textContent = 'Browser unsupported';
     return;
   }
   if (!window.isSecureContext) {
     el.voiceHint.textContent = 'HTTPS or localhost is required';
   } else {
-    el.voiceHint.textContent = 'Internet needed for voice recognition';
+    el.voiceHint.textContent = 'Press to allow microphone';
   }
   recognition = new SpeechRecognition();
   recognition.continuous = true;
@@ -416,8 +417,10 @@ function setupVoiceRecognition() {
       toast('No working microphone was found');
       el.voiceHint.textContent = 'Check your microphone';
     } else if (event.error === 'network') {
-      toast('Voice recognition needs an internet connection. Dictation buttons still work.');
-      el.voiceHint.textContent = 'Internet required — or use the arrows';
+      listening = false;
+      updateListeningUi();
+      toast('Speech service could not connect. Check Chrome speech access or try again.');
+      el.voiceHint.textContent = 'Service blocked — use arrows or retry';
     } else if (event.error === 'no-speech') {
       el.voiceHint.textContent = 'Listening — say “next”';
     }
