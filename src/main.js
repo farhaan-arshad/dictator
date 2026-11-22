@@ -1,7 +1,7 @@
 import './styles.css';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
-import { normalizeWords, splitTextIntoSegments, textForSpeech } from './dictation-core.js';
+import { classifyVoiceCommand, normalizeWords, splitTextIntoSegments, textForSpeech } from './dictation-core.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -347,15 +347,16 @@ function processVoiceTranscript(transcript) {
   const now = Date.now();
   if (now - (recognition.lastCommandAt || 0) < 1400) return;
 
-  if (/(^|\b)(next|continue|go forward|move forward)(\b|$)/.test(transcript)) {
+  const command = classifyVoiceCommand(transcript);
+  if (command === 'next') {
     recognition.lastCommandAt = now;
     toast('Voice command: Next');
     nextSegment();
-  } else if (/(^|\b)(previous|back|go back|move back)(\b|$)/.test(transcript)) {
+  } else if (command === 'previous') {
     recognition.lastCommandAt = now;
     toast('Voice command: Previous');
     previousSegment();
-  } else if (/(^|\b)(repeat|again|say that again)(\b|$)/.test(transcript)) {
+  } else if (command === 'repeat') {
     recognition.lastCommandAt = now;
     toast('Voice command: Repeat');
     speakCurrent();
@@ -385,19 +386,30 @@ function setupVoiceRecognition() {
     updateListeningUi();
     el.voiceHint.textContent = 'Listening — say “next”';
   };
+  recognition.onsoundstart = () => {
+    el.voiceHint.textContent = 'Microphone heard sound';
+  };
+  recognition.onspeechstart = () => {
+    el.voiceHint.textContent = 'Listening to your command';
+  };
   recognition.onresult = event => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
-      if (!result.isFinal) continue;
       let transcript = '';
       for (let n = 0; n < result.length; n++) transcript += ` ${result[n].transcript}`;
       transcript = transcript.trim().toLowerCase();
       el.voiceHint.textContent = transcript
         ? `Heard: “${transcript}”`
         : 'Listening — say “next”';
-      if (!result.isFinal && transcript.length < 3) continue;
+      if (!result.isFinal) continue;
       processVoiceTranscript(transcript);
     }
+  };
+  recognition.onspeechend = () => {
+    el.voiceHint.textContent = 'Processing voice command';
+  };
+  recognition.onnomatch = () => {
+    el.voiceHint.textContent = 'No command recognized — try “next”';
   };
   recognition.onend = () => {
     if (listening) {
@@ -405,7 +417,7 @@ function setupVoiceRecognition() {
         if (listening) {
           try { recognition.start(); } catch {}
         }
-      }, 250);
+      }, 700);
     }
   };
   recognition.onerror = event => {
@@ -436,28 +448,6 @@ function updateListeningUi() {
   el.voiceHint.textContent = listening ? 'Say “next” to continue' : 'Voice commands are off';
 }
 
-async function requestMicrophonePermission() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    toast('Microphone access is unavailable in this browser');
-    el.voiceHint.textContent = 'Use Chrome or Edge over HTTPS';
-    return false;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(track => track.stop());
-    el.voiceHint.textContent = 'Microphone allowed';
-    return true;
-  } catch (error) {
-    listening = false;
-    updateListeningUi();
-    el.voiceHint.textContent = 'Allow microphone access, then try again';
-    toast(error.name === 'NotAllowedError'
-      ? 'Microphone permission was denied'
-      : 'Could not access your microphone');
-    return false;
-  }
-}
-
 function startListening() {
   if (!recognition) return;
   if (listening) return;
@@ -470,7 +460,6 @@ function startListening() {
     updateListeningUi();
     toast('Voice recognition could not start');
   }
-  requestMicrophonePermission();
 }
 
 function toggleListening() {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeWords, splitTextIntoSegments, textForSpeech } from '../src/dictation-core.js';
+import { classifyVoiceCommand, normalizeWords, splitTextIntoSegments, textForSpeech } from '../src/dictation-core.js';
 
 test('splits text into exact requested sections', () => {
   const segments = splitTextIntoSegments('one two three four five six seven', 3);
@@ -17,4 +17,12 @@ test('expands dictation punctuation', () => {
   assert.match(spoken, /comma/);
   assert.match(spoken, /exclamation mark/);
   assert.match(spoken, /question mark/);
+});
+
+test('classifies common next, repeat, and previous speech variants', () => {
+  assert.equal(classifyVoiceCommand('next'), 'next');
+  assert.equal(classifyVoiceCommand('please go to the next section'), 'next');
+  assert.equal(classifyVoiceCommand('repeat that'), 'repeat');
+  assert.equal(classifyVoiceCommand('go back'), 'previous');
+  assert.equal(classifyVoiceCommand('hello there'), null);
 });

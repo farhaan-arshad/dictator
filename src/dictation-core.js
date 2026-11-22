@@ -40,3 +40,16 @@ export function textForSpeech(text) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+export function classifyVoiceCommand(transcript) {
+  const spoken = transcript
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/(^|\s)(next|neckst|nex|texts|nets|nest|continue|go forward|move forward|forward)(\s|$)/.test(spoken)) return 'next';
+  if (/(^|\s)(previous|back|go back|move back|before|earlier)(\s|$)/.test(spoken)) return 'previous';
+  if (/(^|\s)(repeat|repeater|replay|again|say that again|one more time)(\s|$)/.test(spoken)) return 'repeat';
+  return null;
+}
