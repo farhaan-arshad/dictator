@@ -307,9 +307,18 @@ kbd { min-width: 28px; height: 24px; padding: 0 6px; border: 1px solid #3c473f; 
   .topbar { height: 58px; padding: 0 12px; }
   .brand { font-size: 17px; }
   .upload-button { width: 38px; padding: 0; justify-content: center; font-size: 0; }
-  .workspace { height: calc(100vh - 58px); grid-template-columns: 1fr; grid-template-rows: 144px minmax(0,1fr); }
-  .sidebar { border-right: 0; border-bottom: 1px solid #29312c; }
-  .progress-section { display: none; }
-  .voice-section { padding-top: 10px; }
+  .workspace { height: calc(100vh - 58px); grid-template-columns: 1fr; grid-template-rows: 188px minmax(0,1fr); }
+  .sidebar { border-right: 0; border-bottom: 1px solid #29312c; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 10px; align-content: start; overflow-y: auto; }
+  .control-section { padding: 0; }
+  .progress-section { padding: 8px 0 0; border: 0; }
+  .word-control, .speed-control, .resume-control { margin-top: 7px; }
+  .voice-settings { padding-top: 4px; }
+  .voice-section { padding-top: 4px; }
+  .voice-button { min-height: 50px; }
+  .transport { grid-template-columns: repeat(4, minmax(38px,1fr)); }
+  .primary-button { height: 42px; }
   .document-area { grid-row: 2; }
+  .document-toolbar { padding: 0 10px; }
+  .document-name span { max-width: 150px; }
+  .viewer { padding: 10px; }
 }

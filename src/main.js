@@ -1,6 +1,7 @@
 import './styles.css';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
+import { normalizeWords, splitTextIntoSegments, textForSpeech } from './dictation-core.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -109,22 +110,7 @@ function toast(message) {
 }
 
 function splitIntoSegments(text, wordsPerSection = 6) {
-  const clean = text.replace(/\s+/g, ' ').trim();
-  if (!clean) return [];
-  const sentences = clean.match(/[^.!?]+(?:[.!?]+|$)/g) || [clean];
-  const result = [];
-  sentences.forEach(sentence => {
-    const words = sentence.trim().match(/\S+/g) || [];
-    for (let i = 0; i < words.length; i += wordsPerSection) {
-      const chunk = words.slice(i, i + wordsPerSection);
-      const chunkText = chunk.join(' ');
-      result.push({
-        text: chunkText,
-        words: normalizeWords(chunkText),
-      });
-    }
-  });
-  return result;
+  return splitTextIntoSegments(text, wordsPerSection);
 }
 
 async function loadPdf(file) {
@@ -189,10 +175,6 @@ async function renderAllPages() {
   }
 }
 
-function normalizeWords(text) {
-  return (text.toLowerCase().match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || []);
-}
-
 function highlightCurrentSegment() {
   document.querySelectorAll('.textLayer span').forEach(span => {
     span.classList.remove('active-word');
@@ -207,7 +189,7 @@ function highlightCurrentSegment() {
   spans.forEach(span => {
     if (span.dataset.originalText == null) span.dataset.originalText = span.textContent;
     const original = span.dataset.originalText;
-    const matches = original.matchAll(/\p{L}[\p{L}\p{M}\p{N}]*/gu);
+    const matches = original.matchAll(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu);
     for (const match of matches) {
       flattened.push({
         word: match[0].toLowerCase(),
@@ -283,7 +265,7 @@ function speakCurrent() {
   window.speechSynthesis.cancel();
   playbackPaused = false;
   updatePauseButton();
-  const utterance = new SpeechSynthesisUtterance(speakPunctuation(segments[currentIndex].text));
+  const utterance = new SpeechSynthesisUtterance(textForSpeech(segments[currentIndex].text));
   utterance.rate = readingRate;
   const selectedVoice = window.speechSynthesis
     .getVoices()
@@ -324,26 +306,6 @@ function previousSegment() {
     highlightCurrentSegment();
     speakCurrent();
   }
-}
-
-function speakPunctuation(text) {
-  return text
-    .replace(/\.{3}/g, ' ellipsis ')
-    .replace(/\b([A-Z])\./g, '$1 ')
-    .replace(/([.!?])(?=\s|$)/g, match => ({
-      '.': ' period',
-      '!': ' exclamation mark',
-      '?': ' question mark',
-    })[match])
-    .replace(/,/g, ' comma')
-    .replace(/;/g, ' semicolon')
-    .replace(/:/g, ' colon')
-    .replace(/—/g, ' em dash ')
-    .replace(/\(/g, ' open parenthesis ')
-    .replace(/\)/g, ' close parenthesis ')
-    .replace(/"/g, ' quote ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function updatePauseButton() {
@@ -426,6 +388,7 @@ function setupVoiceRecognition() {
   recognition.onresult = event => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
+      if (!result.isFinal) continue;
       let transcript = '';
       for (let n = 0; n < result.length; n++) transcript += ` ${result[n].transcript}`;
       transcript = transcript.trim().toLowerCase();
